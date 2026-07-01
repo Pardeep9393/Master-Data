@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Master dashboard</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    background: #f5f5f2;
+    color: #1a1a1a;
+    margin: 0;
+  }
+  header {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e2df;
+    padding: 20px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .subtitle { font-size: 13px; color: #666; margin: 0 0 14px; }
+  .top-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .nav a {
+    font-size: 12px;
+    color: #444;
+    background: #f5f5f2;
+    border: 1px solid #e2e2df;
+    border-radius: 20px;
+    padding: 6px 12px;
+    text-decoration: none;
+  }
+  .nav a:hover { background: #ececea; }
+  button {
+    background: #1a1a1a;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { background: #333; }
+  button.secondary {
+    background: #fff;
+    color: #1a1a1a;
+    border: 1px solid #ccc;
+  }
+  button.secondary:hover { background: #f0f0ee; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .section { margin-bottom: 28px; }
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .section-head h2 { font-size: 16px; font-weight: 600; margin: 0; }
+  .section-actions { display: flex; gap: 8px; align-items: center; }
+  .section-actions a { font-size: 12px; color: #555; text-decoration: none; border: 1px solid #ccc; border-radius: 6px; padding: 5px 10px; }
+  .section-actions a:hover { background: #ececea; }
+  .remove-btn { font-size: 12px; color: #a32d2d; background: none; border: 1px solid #e9c7c7; border-radius: 6px; padding: 5px 10px; }
+  .remove-btn:hover { background: #fcebeb; }
+  .frame-wrap {
+    background: #ffffff;
+    border: 1px solid #e2e2df;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  iframe {
+    width: 100%;
+    height: 700px;
+    border: none;
+    display: block;
+  }
+  .load-msg, .empty-msg { font-size: 13px; color: #999; padding: 24px 12px; text-align: center; }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    width: 90%;
+    max-width: 380px;
+  }
+  .modal h3 { margin: 0 0 14px; font-size: 16px; }
+  .modal label { font-size: 13px; color: #555; display: block; margin: 10px 0 4px; }
+  .modal input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d5d5d0;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+  .modal-error { color: #a32d2d; font-size: 12px; margin-top: 8px; display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="top-row">
+    <div>
+      <h1>Master dashboard</h1>
+      <p class="subtitle">All tracker dashboards in one place, shared across every device</p>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="secondary" onclick="loadDashboards()">Refresh</button>
+      <button onclick="openModal()">+ Add dashboard</button>
+    </div>
+  </div>
+  <div class="nav" id="nav"></div>
+</header>
+
+<main id="main">
+  <p class="load-msg" id="mainLoading">Loading dashboard list...</p>
+</main>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3>Add a dashboard link</h3>
+    <label>Name</label>
+    <input type="text" id="modalName" placeholder="e.g. Return Dashboard">
+    <label>URL</label>
+    <input type="text" id="modalUrl" placeholder="https://yourname.github.io/your-dashboard/">
+    <p class="modal-error" id="modalError"></p>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeModal()">Cancel</button>
+      <button onclick="submitAdd()">Add</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SET THIS AFTER DEPLOYING DashboardListAPI.gs AS A WEB APP
+// ============================================================
+var API_URL = 'YAHAN_APNA_DASHBOARD_LIST_API_EXEC_URL_DAALO';
+
+var currentList = [];
+
+function slugify(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+async function loadDashboards() {
+  var main = document.getElementById('main');
+  var nav = document.getElementById('nav');
+  main.innerHTML = '<p class="load-msg">Loading dashboard list...</p>';
+  nav.innerHTML = '';
+
+  try {
+    var res = await fetch(API_URL);
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to load list');
+    currentList = data.dashboards || [];
+  } catch (e) {
+    main.innerHTML = '<p class="load-msg">Could not load dashboard list. Check API_URL setup. (' + e.message + ')</p>';
+    return;
+  }
+
+  if (currentList.length === 0) {
+    main.innerHTML = '<p class="empty-msg">No dashboards added yet. Click "+ Add dashboard" to add your first one.</p>';
+    return;
+  }
+
+  main.innerHTML = '';
+  currentList.forEach(function(d) {
+    var id = slugify(d.name);
+
+    var navLink = document.createElement('a');
+    navLink.href = '#' + id;
+    navLink.innerText = d.name;
+    nav.appendChild(navLink);
+
+    var section = document.createElement('div');
+    section.className = 'section';
+    section.id = id;
+
+    var head = document.createElement('div');
+    head.className = 'section-head';
+
+    var h2 = document.createElement('h2');
+    h2.innerText = d.name;
+    head.appendChild(h2);
+
+    var actions = document.createElement('div');
+    actions.className = 'section-actions';
+
+    var openLink = document.createElement('a');
+    openLink.href = d.url;
+    openLink.target = '_blank';
+    openLink.rel = 'noopener';
+    openLink.innerText = 'Open full page ↗';
+    actions.appendChild(openLink);
+
+    var removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn';
+    removeBtn.innerText = 'Remove';
+    removeBtn.onclick = function() { removeDashboard(d.name, d.url); };
+    actions.appendChild(removeBtn);
+
+    head.appendChild(actions);
+    section.appendChild(head);
+
+    var frameWrap = document.createElement('div');
+    frameWrap.className = 'frame-wrap';
+
+    var iframe = document.createElement('iframe');
+    iframe.src = d.url;
+    iframe.loading = 'lazy';
+    frameWrap.appendChild(iframe);
+
+    section.appendChild(frameWrap);
+    main.appendChild(section);
+  });
+}
+
+function openModal() {
+  document.getElementById('modalName').value = '';
+  document.getElementById('modalUrl').value = '';
+  document.getElementById('modalError').style.display = 'none';
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+async function submitAdd() {
+  var name = document.getElementById('modalName').value.trim();
+  var url = document.getElementById('modalUrl').value.trim();
+  var errEl = document.getElementById('modalError');
+  errEl.style.display = 'none';
+
+  if (!name || !url) {
+    errEl.innerText = 'Name aur URL dono bharo';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!/^https?:\/\//.test(url)) {
+    errEl.innerText = 'URL http:// ya https:// se shuru hona chahiye';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    var res = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'add', name: name, url: url })
+    });
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Add failed');
+    closeModal();
+    loadDashboards();
+  } catch (e) {
+    errEl.innerText = e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function removeDashboard(name, url) {
+  if (!confirm('"' + name + '" ko list se hatana hai?')) return;
+  try {
+    var res = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'remove', name: name, url: url })
+    });
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Remove failed');
+    loadDashboards();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+loadDashboards();
+</script>
+</body>
+</html>
