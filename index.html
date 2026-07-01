@@ -149,6 +149,15 @@
 // ============================================================
 var API_URL = 'YAHAN_APNA_DASHBOARD_LIST_API_EXEC_URL_DAALO';
 
+// Fallback list — works even before the API is set up.
+// Once API_URL is configured, "Add dashboard" will sync across devices instead.
+var DEFAULT_DASHBOARDS = [
+  { name: 'Return Dashboard', url: 'https://pardeep9393.github.io/Return-dashboard/' },
+  { name: 'Packing Material Dashboard', url: 'https://pardeep9393.github.io/Packing-Material-DashBoard/' },
+  { name: 'Inward All Summary', url: 'https://pardeep9393.github.io/Inward-All-summary/' }
+];
+
+var apiReady = API_URL.indexOf('YAHAN_APNA') !== 0;
 var currentList = [];
 
 function slugify(name) {
@@ -161,14 +170,18 @@ async function loadDashboards() {
   main.innerHTML = '<p class="load-msg">Loading dashboard list...</p>';
   nav.innerHTML = '';
 
-  try {
-    var res = await fetch(API_URL);
-    var data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to load list');
-    currentList = data.dashboards || [];
-  } catch (e) {
-    main.innerHTML = '<p class="load-msg">Could not load dashboard list. Check API_URL setup. (' + e.message + ')</p>';
-    return;
+  if (!apiReady) {
+    currentList = DEFAULT_DASHBOARDS;
+  } else {
+    try {
+      var res = await fetch(API_URL);
+      var data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to load list');
+      currentList = data.dashboards || [];
+      if (currentList.length === 0) currentList = DEFAULT_DASHBOARDS;
+    } catch (e) {
+      currentList = DEFAULT_DASHBOARDS;
+    }
   }
 
   if (currentList.length === 0) {
@@ -244,6 +257,12 @@ async function submitAdd() {
   var url = document.getElementById('modalUrl').value.trim();
   var errEl = document.getElementById('modalError');
   errEl.style.display = 'none';
+
+  if (!apiReady) {
+    errEl.innerText = 'API_URL abhi set nahi hai — is naye link ko sirf isi device pe temp dekhne ke liye maano. Sabke liye permanent add karne ke liye pehle DashboardListAPI.gs deploy karo.';
+    errEl.style.display = 'block';
+    return;
+  }
 
   if (!name || !url) {
     errEl.innerText = 'Name aur URL dono bharo';
