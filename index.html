@@ -25,15 +25,17 @@
   .top-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .nav { display: flex; gap: 8px; flex-wrap: wrap; }
   .nav a {
-    font-size: 12px;
+    font-size: 13px;
     color: #444;
     background: #f5f5f2;
     border: 1px solid #e2e2df;
     border-radius: 20px;
-    padding: 6px 12px;
+    padding: 7px 14px;
     text-decoration: none;
+    cursor: pointer;
   }
   .nav a:hover { background: #ececea; }
+  .nav a.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
   button {
     background: #1a1a1a;
     color: #fff;
@@ -190,17 +192,21 @@ async function loadDashboards() {
   }
 
   main.innerHTML = '';
-  currentList.forEach(function(d) {
+  currentList.forEach(function(d, idx) {
     var id = slugify(d.name);
 
     var navLink = document.createElement('a');
-    navLink.href = '#' + id;
+    navLink.href = 'javascript:void(0)';
     navLink.innerText = d.name;
+    navLink.onclick = function() { showTab(id); };
+    if (idx === 0) navLink.className = 'active';
+    navLink.setAttribute('data-tab', id);
     nav.appendChild(navLink);
 
     var section = document.createElement('div');
     section.className = 'section';
     section.id = id;
+    section.style.display = idx === 0 ? 'block' : 'none';
 
     var head = document.createElement('div');
     head.className = 'section-head';
@@ -238,6 +244,15 @@ async function loadDashboards() {
 
     section.appendChild(frameWrap);
     main.appendChild(section);
+  });
+}
+
+function showTab(id) {
+  document.querySelectorAll('.section').forEach(function(s) {
+    s.style.display = s.id === id ? 'block' : 'none';
+  });
+  document.querySelectorAll('.nav a').forEach(function(a) {
+    a.classList.toggle('active', a.getAttribute('data-tab') === id);
   });
 }
 
